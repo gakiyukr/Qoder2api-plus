@@ -124,6 +124,41 @@ func TestQoderDataLinesWithoutBlankSeparators(t *testing.T) {
 	}
 }
 
+func TestQoderJSONContinuationWithoutDataPrefix(t *testing.T) {
+	s := "data: {\"id\":\"chat-1\",\"model\":\"ultimate\",\n" +
+		"\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":null}]}\n" +
+		"data: [DONE]\n"
+	var content string
+	err := ParseSSE(context.Background(), io.NopCloser(strings.NewReader(s)), time.Second, func(e Event) error {
+		content += e.Content
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != "ok" {
+		t.Fatalf("content=%q", content)
+	}
+}
+
+func TestSSEControlLineIsNotAppendedToIncompleteJSON(t *testing.T) {
+	s := "data: {\"choices\":[\n" +
+		"event: message\n" +
+		"data: {\"delta\":{\"content\":\"ok\"}}]}\n" +
+		"data: [DONE]\n"
+	var content string
+	err := ParseSSE(context.Background(), io.NopCloser(strings.NewReader(s)), time.Second, func(e Event) error {
+		content += e.Content
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if content != "ok" {
+		t.Fatalf("content=%q", content)
+	}
+}
+
 func TestIncompleteJSONBeforeDoneIsRejected(t *testing.T) {
 	s := "data: {\"choices\":[\n\ndata: [DONE]\n\n"
 	err := ParseSSE(context.Background(), io.NopCloser(strings.NewReader(s)), time.Second, func(Event) error { return nil })
