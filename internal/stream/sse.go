@@ -116,6 +116,16 @@ func ParseSSE(ctx context.Context, body io.ReadCloser, idle time.Duration, emit 
 			if done {
 				return nil
 			}
+		} else if incomplete.Len() > 0 && len(line) > 0 && !isSSEControlLine(line) {
+			// Although SSE requires every payload line to use the data: field,
+			// some Qoder model routes have emitted pretty-printed JSON where
+			// only the first physical line has that prefix. Accept an ordinary
+			// continuation only while a JSON value is known to be incomplete.
+			// This does not make unrelated malformed events disappear: the
+			// combined value must become valid JSON or parsing still fails.
+			if err := consume(line); err != nil {
+				return err
+			}
 		}
 		if lr.err != nil {
 			if errors.Is(lr.err, io.EOF) {
@@ -131,6 +141,13 @@ func ParseSSE(ctx context.Context, body io.ReadCloser, idle time.Duration, emit 
 		}
 	}
 	return nil
+}
+
+func isSSEControlLine(line []byte) bool {
+	return bytes.HasPrefix(line, []byte(":")) ||
+		bytes.HasPrefix(line, []byte("event:")) ||
+		bytes.HasPrefix(line, []byte("id:")) ||
+		bytes.HasPrefix(line, []byte("retry:"))
 }
 
 func isIncompleteJSON(err error) bool {
