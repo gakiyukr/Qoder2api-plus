@@ -1,0 +1,16 @@
+{
+  "listen": "127.0.0.1:8080",
+  "credentials_file": "credentials.json",
+  "transport": "auto",
+  "proxy_url": "",
+  "session_header": "X-Session-Key",
+  "max_request_bytes": 8388608,
+  "connect_timeout": "15s",
+  "response_header_timeout": "30s",
+  "stream_idle_timeout": "90s",
+  "total_request_timeout": "10m",
+  "catalog_ttl": "1h",
+  "cooldown_default": "1m",
+  "max_5xx_retries": 1,
+  "cors_origins": []
+}

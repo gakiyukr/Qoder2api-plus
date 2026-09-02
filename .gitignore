@@ -1,0 +1,9 @@
+/qoder-proxy
+/dist/
+/.cache/
+/config.json
+/config.docker.json
+credentials.json
+*.credentials.json
+*.tmp
+.DS_Store

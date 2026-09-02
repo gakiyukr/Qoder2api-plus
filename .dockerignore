@@ -1,0 +1,8 @@
+.git
+.github
+refs
+.cache
+dist
+qoder-proxy
+credentials.json
+*.credentials.json

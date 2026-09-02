@@ -1,0 +1,5 @@
+data:{"headers":{"Content-Type":["application/json"]},"body":"{\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"index\":0,\"finish_reason\":null}],\"created\":1,\"id\":\"fixture-id\",\"model\":\"lite\",\"object\":\"chat.completion.chunk\"}","statusCodeValue":200,"statusCode":"OK"}
+
+data:{"headers":{"Content-Type":["application/json"]},"body":"{\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1,\"id\":\"fixture-id\",\"model\":\"lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":1,\"prompt_tokens\":10,\"total_tokens\":11,\"prompt_tokens_details\":{\"cached_tokens\":2,\"cache_write_tokens\":3}}}","statusCodeValue":200,"statusCode":"OK"}
+
+data:{"headers":{"Content-Type":["application/json"]},"body":"[DONE]","statusCodeValue":200,"statusCode":"OK"}
