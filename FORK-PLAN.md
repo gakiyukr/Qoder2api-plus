@@ -123,14 +123,27 @@ case 403:
 
 ## 3. 二開排程
 
-| 階段 | 內容 | 完成標準 |
-|---|---|---|
-| **Phase 1（P0）** | 403 細分：`code 112`/`pricingUrl` → 模型級錯誤，不停用帳號；`MarkDisabled` 帶恢復時間 | 請求 `qmodel_38max` 後 `qfmodel` 仍可用；`/readyz` 不降級 |
-| **Phase 2（P1）** | `/admin/status` + `/admin/quota`（複用 `Statuses()`/`Quota()`）；`/v1/models` 標記帳號不可用模型 | 兩端點有 API Key 保護；quota 返回真實餘額 |
-| **Phase 3（P2，可選）** | `findModel` 失敗改 continue；session 分桶用完整 hash | 多帳號下模型路由正確 |
-| **Phase 4（P3，按需）** | Anthropic 適配 / metrics | 觸發條件成立時再議 |
+| 階段 | 內容 | 完成標準 | 狀態 |
+|---|---|---|---|
+| **Phase 1（P0）** | 403 細分：`code 112`/`pricingUrl` → 模型級錯誤，不停用帳號；`MarkDisabled` 帶恢復時間 | 請求 `qmodel_38max` 後 `qfmodel` 仍可用；`/readyz` 不降級 | ✅ **完成（2026-09-19，commit 461c1ce）** |
+| **Phase 2（P1）** | `/admin/status` + `/admin/quota`（複用 `Statuses()`/`Quota()`）；`/v1/models` 標記帳號不可用模型 | 兩端點有 API Key 保護；quota 返回真實餘額 | 待做 |
+| **Phase 3（P2，可選）** | `findModel` 失敗改 continue；session 分桶用完整 hash | 多帳號下模型路由正確 | 待做 |
+| **Phase 4（P3，按需）** | Anthropic 適配 / metrics | 觸發條件成立時再議 | 待做 |
 
-每個 Phase 完成後：`go vet ./... && go test ./... && go test -race ./...` 全綠 → 交叉編譯 `linux/amd64` → 部署 hytron 冒煙 → 更新本文件。
+### Phase 1 驗收記錄（2026-09-19，hytron 生產）
+
+| 驗證 | 結果 |
+|---|---|
+| `qmodel_38max`（Free 帳號無額度） | `HTTP 403` + `type:"quota_exceeded"`（修復前：`502 upstream_stream_error`） |
+| 隨後 `qfmodel` 請求 | ✅ `HTTP 200` 正常回應——**帳號未被停用**（修復前此處會 503） |
+| `/readyz` | `ready:true, available_accounts:1, degraded:false` |
+| 測試 | `go vet` 綠；新增 6 測試（4 server + 2 pool）全過；全量 `go test ./...` 綠 |
+| race 檢測 | ⚠️ 待補：本機與伺服器均無 C 工具鏈（`go test -race` 需 CGO）。改動均遵循既有 cooldown 鎖模式，風險低 |
+
+實作備忘：
+- `EnvelopeError` 定義在 `internal/stream`（非 qoder 包）——`qoder/live_test.go` 已反向引用 stream，反向依賴會成環。
+- `BearerTransport` 恆以 `stream=true` 打上游（`transport.go:229`），故配額 403 實際經**信封路徑**到達；HTTP 級 403 分類同樣保留，防上游行為變化。
+- 順手修復：`he == nil` 分支補 `return`（原代碼會 fall-through 進 switch）。
 
 ---
 
