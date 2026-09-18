@@ -72,3 +72,47 @@ func TestRoundRobinStickyAndCooldown(t *testing.T) {
 		t.Fatalf("account did not recover after cooldown")
 	}
 }
+
+// TestDisabledAccountRecoversAfterPeriod 驗證 MarkDisabled 的停用是暫時的：
+// 恢復期過後 Snapshot 應惰性轉回 healthy（FORK-PLAN.md §2.2）。
+func TestDisabledAccountRecoversAfterPeriod(t *testing.T) {
+	old := disabledRecovery
+	disabledRecovery = 20 * time.Millisecond
+	t.Cleanup(func() { disabledRecovery = old })
+
+	p := New([]credential.Account{account("a")}, nil, nil)
+	e, err := p.Select("", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.MarkDisabled(e, "test 403")
+
+	if _, state, _, _, _ := e.Snapshot(); state != "disabled" {
+		t.Fatalf("state=%q, want disabled", state)
+	}
+	if got := p.Available(); got != 0 {
+		t.Fatalf("available=%d, want 0", got)
+	}
+
+	time.Sleep(40 * time.Millisecond)
+
+	if _, state, _, _, _ := e.Snapshot(); state != "healthy" {
+		t.Fatalf("state=%q, want healthy after recovery", state)
+	}
+	if got := p.Available(); got != 1 {
+		t.Fatalf("available=%d, want 1 after recovery", got)
+	}
+}
+
+// TestRecoverRestoresImmediately 驗證 Recover() 立即恢復（上游死碼的行為契約）。
+func TestRecoverRestoresImmediately(t *testing.T) {
+	p := New([]credential.Account{account("a")}, nil, nil)
+	e, _ := p.Select("", nil)
+	p.MarkDisabled(e, "test")
+
+	p.Recover("a")
+
+	if _, state, _, _, _ := e.Snapshot(); state != "healthy" {
+		t.Fatalf("state=%q, want healthy after Recover", state)
+	}
+}

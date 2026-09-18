@@ -21,9 +21,14 @@ type Entry struct {
 	Account           credential.Account
 	state             string
 	cooldownUntil     time.Time
+	disabledUntil     time.Time
 	selectedTransport string
 	lastError         string
 }
+
+// disabledRecovery 是帳號被停用後自動恢復的等待期。
+// 包級變數（非常量）以便測試縮短。
+var disabledRecovery = 5 * time.Minute
 
 func (e *Entry) Snapshot() (credential.Account, string, time.Time, string, string) {
 	e.mu.Lock()
@@ -31,6 +36,11 @@ func (e *Entry) Snapshot() (credential.Account, string, time.Time, string, strin
 	state := e.state
 	if state == "cooldown" && time.Now().After(e.cooldownUntil) {
 		e.state = "healthy"
+		state = "healthy"
+	}
+	if state == "disabled" && !e.disabledUntil.IsZero() && time.Now().After(e.disabledUntil) {
+		e.state = "healthy"
+		e.disabledUntil = time.Time{}
 		state = "healthy"
 	}
 	return e.Account, state, e.cooldownUntil, e.selectedTransport, e.lastError
@@ -136,9 +146,11 @@ func (p *Pool) MarkAuthError(e *Entry) {
 	e.lastError = "authentication rejected"
 	e.mu.Unlock()
 }
+
 func (p *Pool) MarkDisabled(e *Entry, reason string) {
 	e.mu.Lock()
 	e.state = "disabled"
+	e.disabledUntil = time.Now().Add(disabledRecovery)
 	e.lastError = reason
 	e.mu.Unlock()
 }

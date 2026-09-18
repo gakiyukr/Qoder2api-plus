@@ -214,9 +214,18 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 	accountAttempts := 0
 	maxAccounts := s.Pool.Count()
 	retries5xx := 0
+	// lastQuotaErr 記錄最近一次「模型級配額拒絕」。帳號在此錯誤下
+	// 仍然健康（換帳號可能仍可服務），耗盡候選後以 403 呈現給
+	// 客戶端，而非誤導性的 503。（FORK-PLAN.md §2.1）
+	var lastQuotaErr *qoder.HTTPError
 	for accountAttempts < maxAccounts {
 		entry, selErr := s.Pool.Select(chatReq.SessionKey, excluded)
 		if selErr != nil {
+			if lastQuotaErr != nil {
+				status = lastQuotaErr.Status
+				writeError(w, status, "quota_exceeded", lastQuotaErr.Error())
+				return
+			}
 			status = 503
 			writeError(w, status, "no_account", selErr.Error())
 			return
@@ -282,7 +291,13 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 			case 401:
 				s.Pool.MarkAuthError(entry)
 			case 403:
-				s.Pool.MarkDisabled(entry, "Qoder returned 403")
+				if qoder.IsQuotaError(he.Message) {
+					// 模型級配額拒絕：帳號健康，不停用；
+					// 換下一候選帳號，耗盡後回 403。
+					lastQuotaErr = he
+				} else {
+					s.Pool.MarkDisabled(entry, "Qoder returned 403")
+				}
 			case 429:
 				s.Pool.MarkCooldown(entry, maxDuration(he.RetryAfter, s.Config.CooldownDefault.Duration))
 			default:
@@ -304,6 +319,11 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	status = 503
+	if lastQuotaErr != nil {
+		status = lastQuotaErr.Status
+		writeError(w, status, "quota_exceeded", lastQuotaErr.Error())
+		return
+	}
 	writeError(w, status, "accounts_exhausted", "all available Qoder accounts failed before streaming began")
 }
 
@@ -425,14 +445,19 @@ func (s *Server) relay(w http.ResponseWriter, ctx context.Context, up *qoder.Ups
 			return nil
 		})
 		if err != nil {
-			msg := qoder.SanitizeSnippet([]byte(err.Error()), 256)
-			b, _ := json.Marshal(map[string]any{"error": map[string]any{"type": "upstream_stream_error", "message": msg, "partial": saw}})
+			status, typ, msg := 502, "upstream_stream_error", qoder.SanitizeSnippet([]byte(err.Error()), 256)
+			var envErr *qstream.EnvelopeError
+			if errors.As(err, &envErr) && qoder.IsQuotaError(envErr.Body) {
+				status, typ = http.StatusForbidden, "quota_exceeded"
+				msg = qoder.SanitizeSnippet([]byte(envErr.Body), 256)
+			}
+			b, _ := json.Marshal(map[string]any{"error": map[string]any{"type": typ, "message": msg, "partial": saw}})
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", b)
 			if !writer.Done {
 				_, _ = io.WriteString(w, "data: [DONE]\n\n")
 			}
 			flusher.Flush()
-			return 502
+			return status
 		}
 		return 200
 	}
@@ -457,8 +482,14 @@ func (s *Server) relay(w http.ResponseWriter, ctx context.Context, up *qoder.Ups
 		return nil
 	})
 	if err != nil {
-		writeError(w, 502, "upstream_stream_error", qoder.SanitizeSnippet([]byte(err.Error()), 256))
-		return 502
+		status, typ, msg := 502, "upstream_stream_error", qoder.SanitizeSnippet([]byte(err.Error()), 256)
+		var envErr *qstream.EnvelopeError
+		if errors.As(err, &envErr) && qoder.IsQuotaError(envErr.Body) {
+			status, typ = http.StatusForbidden, "quota_exceeded"
+			msg = qoder.SanitizeSnippet([]byte(envErr.Body), 256)
+		}
+		writeError(w, status, typ, msg)
+		return status
 	}
 	writeJSON(w, 200, acc.Response(model.ID))
 	return 200

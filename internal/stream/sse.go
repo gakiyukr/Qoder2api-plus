@@ -150,6 +150,20 @@ func isSSEControlLine(line []byte) bool {
 		bytes.HasPrefix(line, []byte("retry:"))
 }
 
+// EnvelopeError 是 Qoder SSE 信封內嵌的上游錯誤：HTTP 200 開流，
+// 但流內某事件的 statusCodeValue != 200。Body 為內嵌錯誤體
+// （可能含 code/pricingUrl 等業務特徵，供上層做配額分類）。
+// 獨立於 qoder.HTTPError 定義，避免 stream → qoder 循環依賴
+// （qoder/live_test.go 已反向引用本包）。
+type EnvelopeError struct {
+	Status int
+	Body   string
+}
+
+func (e *EnvelopeError) Error() string {
+	return fmt.Sprintf("envelope upstream status %d: %s", e.Status, e.Body)
+}
+
 func isIncompleteJSON(err error) bool {
 	var syntaxErr *json.SyntaxError
 	return errors.As(err, &syntaxErr) && syntaxErr.Error() == "unexpected end of JSON input"
@@ -170,7 +184,7 @@ func parsePayload(payload []byte) ([]Event, bool, error) {
 			return nil, false, errors.New("envelope has invalid body")
 		}
 		if status != 200 {
-			return nil, false, fmt.Errorf("envelope upstream status %d: %s", status, truncate(inner, 256))
+			return nil, false, &EnvelopeError{Status: status, Body: truncate(inner, 256)}
 		}
 		if strings.TrimSpace(inner) == "[DONE]" {
 			return nil, true, nil

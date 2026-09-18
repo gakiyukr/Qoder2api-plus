@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -405,6 +406,19 @@ type HTTPError struct {
 
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("Qoder upstream HTTP %d: %s", e.Status, e.Message)
+}
+
+// quotaMarkerRe 匹配上游「模型級配額拒絕」的業務特徵：
+// 實測 Free 層帳號請求付費模型時，上游以 HTTP 200 + 信封內嵌
+// 403 + {"code":"112","message":"{\"pricingUrl\":...}"} 返回
+// （見 FORK-PLAN.md §2.1）。帳號本身健康，僅該模型無額度。
+var quotaMarkerRe = regexp.MustCompile(`"code"\s*:\s*"?112"?|"pricingUrl"`)
+
+// IsQuotaError 判斷上游錯誤訊息是否為模型級配額拒絕，
+// 而非帳號級拒絕（token 失效、無權限、地區封鎖）。
+// 呼叫者據此決定是否停用帳號：配額錯誤不停用。
+func IsQuotaError(message string) bool {
+	return quotaMarkerRe.MatchString(message)
 }
 
 func retryAfter(h http.Header) time.Duration {
