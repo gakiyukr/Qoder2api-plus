@@ -1,0 +1,16 @@
+# 統一行尾：倉庫內與簽出均為 LF（Go 工具鏈與跨平台簽出一致性）。
+* text=auto eol=lf
+
+# 明確二進位型（構建產物已被 .gitignore 排除，此處為防禦性宣告）。
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# 換行敏感的腳本型別。
+*.sh text eol=lf
+*.ps1 text
+*.bat text
+*.cmd text

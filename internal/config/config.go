@@ -89,9 +89,6 @@ func (c Config) Validate() error {
 	if net.ParseIP(host) == nil {
 		return fmt.Errorf("listen host must be an IP address")
 	}
-	if !net.ParseIP(host).IsLoopback() && os.Getenv("QODER_PROXY_API_KEY") == "" {
-		return errors.New("refusing non-loopback listen address without QODER_PROXY_API_KEY")
-	}
 	if c.MaxRequestBytes < 1024 || c.MaxRequestBytes > 64<<20 {
 		return errors.New("max_request_bytes must be between 1 KiB and 64 MiB")
 	}
@@ -100,6 +97,23 @@ func (c Config) Validate() error {
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			return errors.New("proxy_url must be an http or https URL")
 		}
+	}
+	return nil
+}
+
+// ValidateServe 是僅適用於 serve 子命令的額外約束：非迴環監聽位址
+// 必須搭配 API Key。其餘子命令（login / import-pat / models / doctor）
+// 不開啟任何監聽，不應被這條約束擋下。
+func (c Config) ValidateServe() error {
+	if err := c.Validate(); err != nil {
+		return err
+	}
+	host, _, err := net.SplitHostPort(c.Listen)
+	if err != nil {
+		return err
+	}
+	if !net.ParseIP(host).IsLoopback() && os.Getenv("QODER_PROXY_API_KEY") == "" {
+		return errors.New("refusing non-loopback listen address without QODER_PROXY_API_KEY")
 	}
 	return nil
 }

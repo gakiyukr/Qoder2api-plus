@@ -90,6 +90,9 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := cfg.ValidateServe(); err != nil {
+		return err
+	}
 	_, auth, p, catalog, bearer, cosy, err := components(cfg)
 	if err != nil {
 		return err
