@@ -177,8 +177,12 @@ func (p *Pool) Recover(id string) {
 }
 
 type Status struct {
-	ID, Region, State, Transport, LastError string
-	CooldownUntil                           time.Time
+	ID            string    `json:"id"`
+	Region        string    `json:"region"`
+	State         string    `json:"state"`
+	Transport     string    `json:"transport,omitempty"`
+	LastError     string    `json:"last_error,omitempty"`
+	CooldownUntil time.Time `json:"cooldown_until,omitempty"`
 }
 
 func (p *Pool) Statuses() []Status {
@@ -188,4 +192,14 @@ func (p *Pool) Statuses() []Status {
 		out = append(out, Status{ID: a.AnonymousID(), Region: a.Region, State: s, Transport: t, LastError: l, CooldownUntil: c})
 	}
 	return out
+}
+
+// AdminEntries 對每個帳號（含非 healthy）以快照執行 fn，供管理端點使用。
+// fn 收到帳號值副本與當前狀態；對非 healthy 帳號，呼叫者應避免打上游。
+// 帳號是副本，fn 內不得寫回池狀態（寫狀態請用 Mark* 系列）。
+func (p *Pool) AdminEntries(fn func(a credential.Account, state string)) {
+	for _, e := range p.entries {
+		a, state, _, _, _ := e.Snapshot()
+		fn(a, state)
+	}
 }

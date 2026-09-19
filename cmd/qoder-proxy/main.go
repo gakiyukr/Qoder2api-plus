@@ -90,11 +90,11 @@ func serve(args []string) error {
 	if err != nil {
 		return err
 	}
-	_, _, p, catalog, bearer, cosy, err := components(cfg)
+	_, auth, p, catalog, bearer, cosy, err := components(cfg)
 	if err != nil {
 		return err
 	}
-	s := server.New(cfg, p, catalog, bearer, cosy, os.Getenv("QODER_PROXY_API_KEY"), log.Default())
+	s := server.New(cfg, p, catalog, bearer, cosy, auth, os.Getenv("QODER_PROXY_API_KEY"), log.Default())
 	primeCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	s.Prime(primeCtx)
 	cancel()

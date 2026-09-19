@@ -7,3 +7,8 @@ credentials.json
 *.credentials.json
 *.tmp
 .DS_Store
+
+# 二開構建產物
+/qoder-proxy-linux-amd64
+*.exe
+*.bak

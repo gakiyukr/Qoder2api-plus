@@ -59,7 +59,7 @@ func testServer(t *testing.T, accounts []credential.Account, refresh pool.Refres
 	cfg.Transport = "bearer"
 	cfg.TotalRequestTimeout.Duration = time.Second
 	cfg.StreamIdleTimeout.Duration = time.Second
-	s := New(cfg, p, catalog, tr, tr, "", log.New(io.Discard, "", 0))
+	s := New(cfg, p, catalog, tr, tr, nil, "", log.New(io.Discard, "", 0))
 	return s, p
 }
 func serverAccount(id string) credential.Account {
@@ -213,7 +213,7 @@ func TestAutoUsesCosyForConcreteModelsWithoutFailedBearerGeneration(t *testing.T
 	entry, _ := p.Select("", nil)
 	cfg := config.Default()
 	cfg.Transport = "auto"
-	s := New(cfg, p, nil, bearer, cosy, "", log.New(io.Discard, "", 0))
+	s := New(cfg, p, nil, bearer, cosy, nil, "", log.New(io.Discard, "", 0))
 	got, err := s.pickTransport(context.Background(), entry, a, "qmodel_38max")
 	if err != nil {
 		t.Fatal(err)
