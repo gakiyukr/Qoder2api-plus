@@ -25,6 +25,13 @@ import (
 	"github.com/J-York/QoderProxy/internal/server"
 )
 
+// 版本與提交雜湊由 CI 透過 -ldflags "-X main.version=... -X main.commit=..."
+// 注入；本機未注入時退回 dev，不影響邏輯。
+var (
+	version = "dev"
+	commit  = "none"
+)
+
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.LUTC)
 	if len(os.Args) < 2 {
@@ -43,6 +50,10 @@ func main() {
 		err = models(os.Args[2:])
 	case "doctor":
 		err = doctor(os.Args[2:])
+	case "version", "--version":
+		fmt.Printf("qoder-proxy %s (commit %s, %s %s/%s)\n", version, commit,
+			runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		return
 	case "help", "--help", "-h":
 		usage()
 		return
@@ -55,8 +66,9 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-func usage() { fmt.Fprintln(os.Stderr, "qoder-proxy <serve|login|import-pat|models|doctor> [options]") }
+func usage() {
+	fmt.Fprintln(os.Stderr, "qoder-proxy <serve|login|import-pat|models|doctor|version> [options]")
+}
 
 func load(args []string, name string) (config.Config, *flag.FlagSet, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)

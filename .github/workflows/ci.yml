@@ -20,4 +20,17 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
       - run: go test -race ./...
-      - run: go build ./...
+      - run: go build -trimpath -o qoder-proxy ./cmd/qoder-proxy
+      - run: ./qoder-proxy version
+      - name: 交叉編譯全平台矩陣可建置
+        env:
+          VERSION: ci
+        run: make release
+      - name: 交叉產物冒煙（Linux runner 原生執行 linux-amd64）
+        run: |
+          ./dist/qoder-proxy-linux-amd64 version | grep -q "linux/amd64"
+          ./dist/qoder-proxy-linux-amd64 --help >/dev/null
+      - name: 確認產物為靜態連結
+        run: |
+          file dist/qoder-proxy-linux-amd64 | grep -q "statically linked" \
+            || { echo "linux 產物不是靜態連結"; exit 1; }

@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+      - name: 品質閘（發佈前必過）
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test ./...
+          go test -race ./...
+      - name: 交叉編譯全平台產物
+        run: make release VERSION="${GITHUB_REF_NAME}" COMMIT="$(git rev-parse --short HEAD)"
+      - name: 產物摘要
+        run: |
+          cd dist
+          sha256sum * | tee ../sha256sums.txt
+          ls -la
+      - name: 發佈到 GitHub Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/qoder-proxy-linux-amd64
+            dist/qoder-proxy-linux-arm64
+            dist/qoder-proxy-darwin-amd64
+            dist/qoder-proxy-darwin-arm64
+            dist/qoder-proxy-windows-amd64.exe
+            dist/qoder-proxy-windows-arm64.exe
+            sha256sums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true
