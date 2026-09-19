@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -169,5 +170,59 @@ func TestAdminEntriesCoversAllStates(t *testing.T) {
 	}
 	if states["healthy"] != 1 || states["disabled"] != 1 {
 		t.Fatalf("states=%v, want 1 healthy + 1 disabled", states)
+	}
+}
+
+// TestAdminQuotaConcurrentFetchStress：真正併發地跑 AdminEntries 的多帳號
+// goroutine 路徑（每個 healthy 帳號一個 goroutine 共寫 rows、各自填 row）。
+// 這是為 -race 準備的壓力點：單一帳號或「1 healthy + 跳過」的測試不會产生
+// 實際併發寫入，race 綠對那種路徑沒有意義。重複執行以擴大調度交錯覆蓋。
+func TestAdminQuotaConcurrentFetchStress(t *testing.T) {
+	const accounts = 8
+	as := make([]credential.Account, accounts)
+	for i := range as {
+		as[i] = serverAccount(string(rune('a' + i)))
+	}
+	fq := &fakeQuota{body: quotaPayload}
+	s, _ := testServer(t, as, nil, &fakeTransport{name: "bearer"})
+	s.QuotaCli = fq
+	s.APIKey = "testkey"
+
+	// 併發打 /admin/quota 與 /admin/status：讓 AdminEntries 的
+	// goroutine 叢與 Statuses() 的 Snapshot 惰性讀取交錯執行。
+	var outer sync.WaitGroup
+	for range 20 {
+		outer.Add(2)
+		go func() {
+			defer outer.Done()
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, adminRequest("/admin/quota", "testkey"))
+			if rr.Code != http.StatusOK {
+				t.Errorf("quota code=%d body=%s", rr.Code, rr.Body.String())
+				return
+			}
+			var resp struct {
+				Accounts []map[string]any `json:"accounts"`
+			}
+			if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+				t.Errorf("unmarshal: %v", err)
+				return
+			}
+			if len(resp.Accounts) != accounts {
+				t.Errorf("rows=%d, want %d", len(resp.Accounts), accounts)
+			}
+		}()
+		go func() {
+			defer outer.Done()
+			rr := httptest.NewRecorder()
+			s.ServeHTTP(rr, adminRequest("/admin/status", "testkey"))
+			if rr.Code != http.StatusOK {
+				t.Errorf("status code=%d", rr.Code)
+			}
+		}()
+	}
+	outer.Wait()
+	if got := fq.calls.Load(); got < int64(accounts) {
+		t.Fatalf("upstream calls=%d, want at least %d", got, accounts)
 	}
 }
