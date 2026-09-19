@@ -128,7 +128,8 @@ case 403:
 | **Phase 1（P0）** | 403 細分：`code 112`/`pricingUrl` → 模型級錯誤，不停用帳號；`MarkDisabled` 帶恢復時間 | 請求 `qmodel_38max` 後 `qfmodel` 仍可用；`/readyz` 不降級 | ✅ **完成（2026-09-19，commit 461c1ce）** |
 | **Phase 2（P1）** | `/admin/status` + `/admin/quota`（複用 `Statuses()`/`Quota()`） | 兩端點有 API Key 保護；quota 返回真實餘額 | ✅ **完成（2026-09-19，commit dfc80cc）** |
 | **Phase 3（P2，可選）** | `findModel` 失敗改 continue；session 分桶用完整 hash | 多帳號下模型路由正確 | 待做 |
-| **Phase 4（P3，按需）** | Anthropic 適配 / metrics | 觸發條件成立時再議 | 待做 |
+| **Phase 4（P3，按需）** | metrics（Anthropic 適配已由用戶裁決放棄） | 觸發條件成立時再議 | 擱置 |
+| **Phase 2.5（缺陷修復）** | 非迴環校驗誤傷非 serve 子命令 → `ValidateServe()`；`.gitattributes` 統一 LF | login/doctor 無 key 可跑；索引全 LF | ✅ **完成（2026-09-19，commit 1685c5c）** |
 
 ### Phase 1 驗收記錄（2026-09-19，hytron 生產）
 
