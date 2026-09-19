@@ -139,7 +139,7 @@ case 403:
 | 隨後 `qfmodel` 請求 | ✅ `HTTP 200` 正常回應——**帳號未被停用**（修復前此處會 503） |
 | `/readyz` | `ready:true, available_accounts:1, degraded:false` |
 | 測試 | `go vet` 綠；新增 6 測試（4 server + 2 pool）全過；全量 `go test ./...` 綠 |
-| race 檢測 | ⚠️ 待補：本機與伺服器均無 C 工具鏈（`go test -race` 需 CGO）。改動均遵循既有 cooldown 鎖模式，風險低 |
+| race 檢測 | ✅ **通過（2026-09-19，`-count=2`，6 包全 `ok`）**：本機與伺服器均無 Go（`/opt/workbuddy-gateway` 是編譯產物非工具鏈），race 需 CGO，故用 `golang:1.24` 一次性容器跑，跑完即刪、零殘留。**教訓**：首輪 race 雖綠，但複審發現舊測試根本未產生併發（`TestAdminQuotaSkipsUnhealthy` 為 1 healthy + 1 跳過 = 單 goroutine；`disabledUntil` 測試全串行），綠對那些路徑無意義；已補 `TestAdminQuotaConcurrentFetchStress`（8 帳號 × 20 輪 quota/status 交錯）後重跑。**覆蓋度邊界**：`AdminEntries` fan-out 已真實壓到；`disabledUntil` 併發仍僅串行覆蓋——與上游 `cooldownUntil` 同鎖同模式，非本 fork 新缺口 |
 
 實作備忘：
 - `EnvelopeError` 定義在 `internal/stream`（非 qoder 包）——`qoder/live_test.go` 已反向引用 stream，反向依賴會成環。

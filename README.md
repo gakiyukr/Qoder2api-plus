@@ -256,9 +256,9 @@ go test -race ./...   # 需 CGO
 go build ./...
 ```
 
-本 fork 新增 14 個測試（配額 403 分類與帳號保活、停用自動恢復、`Recover()` 契約、admin 端點含 Token 洩漏防護斷言、SSE 信封型別化、配置校驗範圍回歸）。
+本 fork 新增 15 個測試（配額 403 分類與帳號保活、停用自動恢復、`Recover()` 契約、admin 端點含 Token 洩漏防護斷言、admin quota 併發壓力、SSE 信封型別化、配置校驗範圍回歸）。
 
-⚠️ **race 檢測尚未補跑**——本 fork 的兩處新併發代碼（`AdminEntries` 並行抓 quota、`disabledUntil` 惰性轉移）沿用上游既有鎖模式撰寫，但尚未經 `-race` 驗證。需 `CGO_ENABLED=1` 與 C 工具鏈。
+**`go test -race` 已通過**（2026-09-19，`golang:1.24` 一次性容器，`-count=2`）：6 包全 `ok`，無數據競爭。`TestAdminQuotaConcurrentFetchStress`（8 帳號 × 20 輪 `/admin/quota` 併發，與 `/admin/status` 交錯）確保 `AdminEntries` 的多 goroutine fan-out 被真實壓到。覆蓋度邊界如實標注：`disabledUntil` 的惰性轉移僅串行覆蓋——其與上游既有 `cooldownUntil` 同鎖、同模式，非本 fork 引入的新缺口。
 
 真實測試需顯式開啟並指向專用 `0600` 憑證檔，會實際消耗額度，勿在一般 CI 啟用：
 
