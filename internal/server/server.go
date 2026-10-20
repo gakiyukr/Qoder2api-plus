@@ -324,6 +324,11 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 	// 仍然健康（換帳號可能仍可服務），耗盡候選後以 403 呈現給
 	// 客戶端，而非誤導性的 503。（FORK-PLAN.md §2.1）
 	var lastQuotaErr *qoder.HTTPError
+	// 隊列等待計數與預算：上游模型級容量排隊（10605 / isQueued）時，
+	// 不換號、不冷卻帳號，而是按 retryAfterSeconds 等待後重試同一帳號。
+	// 預算耗盡才回落到原有的「換號 / 返回 403」語義。
+	queueRounds := 0
+	queueWaited := time.Duration(0)
 	for accountAttempts < maxAccounts {
 		entry, selErr := s.Pool.Select(chatReq.SessionKey, excluded)
 		if selErr != nil {
@@ -387,6 +392,34 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 			up, callErr = transport.Chat(ctx, account, chatReq, model)
 		}
 		if callErr != nil {
+			// 模型級容量排隊：上游可能以 HTTP 403 直接拒，也可能以 HTTP 200 建流
+			// 后把排队作为 SSE 信封投递（envelope upstream status 403: ...），
+			// 两种形态的错误体都含 10605 / isQueued / queueType 特征。
+			// 排队是**模型容量**信号（同一模型所有账号共享算力池），换号不缩短等待；
+			// 此处照官方客户端语义耐心等待后重试同一账号。
+			if qwait := qoder.QueueWaitSeconds(callErr.Error()); qwait > 0 &&
+				s.Config.QueueMaxRounds > 0 &&
+				queueRounds < s.Config.QueueMaxRounds &&
+				qwait <= s.Config.QueueWaitMax.Duration &&
+				queueWaited+qwait <= s.Config.QueueWaitBudget.Duration {
+				queueRounds++
+				jitter := time.Duration(rand.Int63n(int64(s.Config.QueueWaitJitter.Duration)) + 1)
+				sleep := qwait + jitter
+				queueWaited += sleep
+				log.Printf("queue: upstream model capacity busy (round %d/%d, model %s, account %s), waiting %s before retry",
+					queueRounds, s.Config.QueueMaxRounds, chatReq.Model, accountLog, sleep)
+				// 等待期间不占用账号：从排除清单移除，让它能再次被选中。
+				delete(excluded, account.ID)
+				accountAttempts--
+				select {
+				case <-ctx.Done():
+					status = 504
+					writeError(w, status, "queue_timeout", "upstream queue wait aborted: "+ctx.Err().Error())
+					return
+				case <-time.After(sleep):
+				}
+				continue
+			}
 			he := asHTTPError(callErr)
 			if he == nil {
 				status = 502

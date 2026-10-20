@@ -40,7 +40,13 @@ type Config struct {
 	CatalogTTL          Duration `json:"catalog_ttl"`
 	CooldownDefault     Duration `json:"cooldown_default"`
 	Max5xxRetries       int      `json:"max_5xx_retries"`
-	CORSOrigins         []string `json:"cors_origins,omitempty"`
+	// 隊列等待：上游模型級容量排隊（10605 / isQueued）時的等待預算。
+	// 與 qoder2api-hub 的 QD_QUEUE_* 語義對齊；QueueMaxRounds 為 0 表示關閉。
+	QueueMaxRounds  int      `json:"queue_max_rounds"`
+	QueueWaitMax    Duration `json:"queue_wait_max"`
+	QueueWaitBudget Duration `json:"queue_wait_budget"`
+	QueueWaitJitter Duration `json:"queue_wait_jitter"`
+	CORSOrigins     []string `json:"cors_origins,omitempty"`
 }
 
 func Default() Config {
@@ -57,6 +63,10 @@ func Default() Config {
 		CatalogTTL:          Duration{time.Hour},
 		CooldownDefault:     Duration{time.Minute},
 		Max5xxRetries:       1,
+		QueueMaxRounds:      6,
+		QueueWaitMax:        Duration{180 * time.Second},
+		QueueWaitBudget:     Duration{600 * time.Second},
+		QueueWaitJitter:     Duration{2 * time.Second},
 	}
 }
 
