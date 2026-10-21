@@ -20,15 +20,12 @@ race:
 build:
 	go build -trimpath -ldflags "$(LDFLAGS)" -o qoder-proxy ./cmd/qoder-proxy
 
-# 交叉編譯六平台靜態產物到 dist/（CGO 關閉；本專案零 C 依賴）。
+# 交叉編譯 Linux 雙架構靜態產物到 dist/（CGO 關閉；本專案零 C 依賴）。
+# 本程序只在 Linux 運行，故不產出 darwin / windows 產物。
 release: clean
 	@mkdir -p dist
-	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-linux-amd64   ./cmd/qoder-proxy
-	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-linux-arm64   ./cmd/qoder-proxy
-	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-darwin-amd64 ./cmd/qoder-proxy
-	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-darwin-arm64 ./cmd/qoder-proxy
-	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-windows-amd64.exe ./cmd/qoder-proxy
-	CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-windows-arm64.exe ./cmd/qoder-proxy
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-linux-amd64 ./cmd/qoder-proxy
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags "$(LDFLAGS)" -o dist/qoder-proxy-linux-arm64 ./cmd/qoder-proxy
 	@ls -la dist/
 
 clean:

@@ -23,7 +23,7 @@ jobs:
           go vet ./...
           go test ./...
           go test -race ./...
-      - name: 交叉編譯全平台產物
+      - name: 交叉編譯 Linux 雙架構產物
         run: make release VERSION="${GITHUB_REF_NAME}" COMMIT="$(git rev-parse --short HEAD)"
       - name: 產物摘要
         run: |
@@ -36,10 +36,6 @@ jobs:
           files: |
             dist/qoder-proxy-linux-amd64
             dist/qoder-proxy-linux-arm64
-            dist/qoder-proxy-darwin-amd64
-            dist/qoder-proxy-darwin-arm64
-            dist/qoder-proxy-windows-amd64.exe
-            dist/qoder-proxy-windows-arm64.exe
             sha256sums.txt
           generate_release_notes: true
           fail_on_unmatched_files: true

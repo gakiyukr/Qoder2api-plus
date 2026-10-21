@@ -22,7 +22,7 @@ jobs:
       - run: go test -race ./...
       - run: go build -trimpath -o qoder-proxy ./cmd/qoder-proxy
       - run: ./qoder-proxy version
-      - name: 交叉編譯全平台矩陣可建置
+      - name: 交叉編譯 Linux 雙架構可建置
         env:
           VERSION: ci
         run: make release
