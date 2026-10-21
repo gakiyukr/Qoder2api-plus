@@ -260,7 +260,14 @@ func (t *BearerTransport) Chat(ctx context.Context, account credential.Account, 
 		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, &HTTPError{Status: resp.StatusCode, Message: SanitizeSnippet(preview, 256), RetryAfter: retryAfter(resp.Header)}
 	}
-	return &UpstreamResponse{Status: resp.StatusCode, Header: resp.Header, Body: resp.Body}, nil
+	up := &UpstreamResponse{Status: resp.StatusCode, Header: resp.Header, Body: resp.Body}
+	// 探查流首：上游以 HTTP 200 建流後可能在流內投遞「模型容量排隊」信封。
+	// 在交付上層前先探查，命中則轉成可重試的錯誤（此時尚未向客戶端寫任何內容）。
+	if qerr, queued := probeQueueEnvelope(up); queued {
+		up.Body.Close()
+		return nil, qerr
+	}
+	return up, nil
 }
 
 type CosyTransport struct {
@@ -395,7 +402,14 @@ func (t *CosyTransport) Chat(ctx context.Context, account credential.Account, re
 		preview, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, &HTTPError{Status: resp.StatusCode, Message: SanitizeSnippet(preview, 256), RetryAfter: retryAfter(resp.Header)}
 	}
-	return &UpstreamResponse{Status: resp.StatusCode, Header: resp.Header, Body: resp.Body}, nil
+	up := &UpstreamResponse{Status: resp.StatusCode, Header: resp.Header, Body: resp.Body}
+	// 探查流首：上游以 HTTP 200 建流後可能在流內投遞「模型容量排隊」信封。
+	// 在交付上層前先探查，命中則轉成可重試的錯誤（此時尚未向客戶端寫任何內容）。
+	if qerr, queued := probeQueueEnvelope(up); queued {
+		up.Body.Close()
+		return nil, qerr
+	}
+	return up, nil
 }
 
 type HTTPError struct {
